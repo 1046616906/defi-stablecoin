@@ -1,0 +1,41 @@
+{
+    // ===============================
+    // Solidity 编译器设置
+    // ===============================
+    "solidity.compileUsingRemoteVersion": "v0.8.20",
+    "solidity.defaultCompiler": "remote",
+    // ===============================
+    // Import / Remapping（最关键）
+    // ===============================
+    "solidity.packageDefaultDependenciesDirectory": "lib",
+    "solidity.packageDefaultDependenciesContractsDirectory": "",
+    "solidity.remappings": [
+        "forge-std/=lib/forge-std/src/",
+        "@openzeppelin/=lib/openzeppelin-contracts/"
+    ],
+    // ===============================
+    // Juan Blanco 特有设置
+    // ===============================
+    "solidity.validationDelay": 1500,
+    // 禁用过度 lint
+    "solidity.linter": "solhint",
+    // ===============================
+    // 编辑体验
+    // ===============================
+    "[solidity]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.formatOnSave": true
+    },
+    // ===============================
+    // 减少 Foundry 噪音
+    // ===============================
+    "files.exclude": {
+        "**/out": true,
+        "**/cache": true
+    },
+    "search.exclude": {
+        "**/out": true,
+        "**/cache": true
+    }
+}

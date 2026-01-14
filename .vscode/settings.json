@@ -37,5 +37,9 @@
     "search.exclude": {
         "**/out": true,
         "**/cache": true
-    }
+    },
+    "solidity.server": "foundry", // 强制使用 Foundry 模式
+    "solidity.foundry.project": true, // 有些版本需要这个（可选）
+    "solidity.compile": "project", // 用项目配置编译
+    "solidity.validation": true // 明确开启诊断
 }

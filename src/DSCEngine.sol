@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 // import {ERC20Burnable, ERC20} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 // import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Validations} from "../utils/Validations.sol";
@@ -14,23 +14,24 @@ import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 
 contract DSCEngine is Validations {
     error DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
-    error ESCEngine__NotAllowedToken();
+    error DSCEngine__NotAllowedToken();
+
     modifier isAllowedToken(address _token) {
-        if (s_priceFeeds[_token] == address(0)) {
-            revert ESCEngine__NotAllowedToken();
-        }
+        _isAllowedToken(_token);
         _;
+    }
+
+    function _isAllowedToken(address _token) internal view {
+        if (s_priceFeeds[_token] == address(0)) {
+            revert DSCEngine__NotAllowedToken();
+        }
     }
 
     mapping(address => address) private s_priceFeeds;
     mapping(address => mapping(address => uint256)) s_tokenAddressToUser;
     DecentralizedStableCoin immutable i_dsc;
 
-    constructor(
-        address[] memory tokenAddress,
-        address[] memory priceFeedsAddress,
-        address dscAddress
-    ) {
+    constructor(address[] memory tokenAddress, address[] memory priceFeedsAddress, address dscAddress) {
         if (tokenAddress.length != priceFeedsAddress.length) {
             revert DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
         }
@@ -45,10 +46,10 @@ contract DSCEngine is Validations {
     function depositCollateralAndMintDsc() external {}
 
     /* 只存入抵押品 不铸造 DSC ，因为铸造会影响 健康值  health factor */
-    function depositCollateral(
-        address tokenCollateralAddress,
-        uint256 tokenAmount
-    ) external moreThanZero(tokenAmount) {}
+    function depositCollateral(address tokenCollateralAddress, uint256 tokenAmount)
+        external
+        moreThanZero(tokenAmount)
+    {}
 
     /* 铸造Dsc */
     function mintDes() external {}

@@ -3,6 +3,6 @@ src = "src"
 out = "out"
 libs = ["lib"]
 remappings = ["@openzeppelin/=lib/openzeppelin-contracts/"]
-auto_detect_solc = true     # 默认就是 true，可不写
 solc = "0.8.20"
+solc_path = "/root/.svm/0.8.20/solc-0.8.20"
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

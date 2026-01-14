@@ -118,3 +118,25 @@ $ cast --help
  private
  
  view & pure functions
+
+ 
+ ### 处理vscode使用插件无效问题
+
+ 1. 检查 Foundry 的私有缓存
+   Foundry 下载的编译器通常藏在这个目录，请执行：
+
+   Bash
+
+   ls ~/.svm/0.8.20
+   如果有结果（看到一个名为 solc-0.8.20 的文件）： 我们直接把它拷贝到 VS Code 插件的缓存目录，这是最快的：
+
+   Bash
+
+   # 创建插件需要的目录
+   mkdir -p ~/.cache/hardhat-nodejs/compilers-v2/linux-amd64/
+
+   # 拷贝并重命名（插件只认这个长名字）
+   cp ~/.svm/0.8.20/solc-0.8.20 ~/.cache/hardhat-nodejs/compilers-v2/linux-amd64/solc-linux-amd64-v0.8.20+commit.a1b79de6
+
+   # 赋予权限
+   chmod +x ~/.cache/hardhat-nodejs/compilers-v2/linux-amd64/solc-linux-amd64-v0.8.2

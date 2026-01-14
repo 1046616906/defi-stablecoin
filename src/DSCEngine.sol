@@ -5,14 +5,14 @@ pragma solidity 0.8.20;
 // import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Validations} from "../utils/Validations.sol";
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
-
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 /**
  * @title DSCEngine
  * @author Noah Harrison
  * @notice this is a study object
  */
 
-contract DSCEngine is Validations {
+contract DSCEngine is Validations, ReentrancyGuard {
     error DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
     error DSCEngine__NotAllowedToken();
 
@@ -49,6 +49,8 @@ contract DSCEngine is Validations {
     function depositCollateral(address tokenCollateralAddress, uint256 tokenAmount)
         external
         moreThanZero(tokenAmount)
+        isAllowedToken(tokenCollateralAddress)
+        nonReentrant
     {}
 
     /* 铸造Dsc */

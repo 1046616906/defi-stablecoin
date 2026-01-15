@@ -6,6 +6,8 @@ pragma solidity 0.8.20;
 import {Validations} from "../utils/Validations.sol";
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 /**
  * @title DSCEngine
  * @author Noah Harrison
@@ -13,25 +15,33 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  */
 
 contract DSCEngine is Validations, ReentrancyGuard {
+    /* ERROR */
     error DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
     error DSCEngine__NotAllowedToken();
-
+    error DSCEngine__TransFerFaile();
+    
     modifier isAllowedToken(address _token) {
         _isAllowedToken(_token);
         _;
     }
 
-    function _isAllowedToken(address _token) internal view {
-        if (s_priceFeeds[_token] == address(0)) {
-            revert DSCEngine__NotAllowedToken();
-        }
-    }
+    /* state */
+    mapping(address token => address priceFeeds) private s_priceFeeds;
+    mapping(address user => mapping(address token => uint256 amount)) s_userAddressDeposit;
 
-    mapping(address => address) private s_priceFeeds;
-    mapping(address => mapping(address => uint256)) s_tokenAddressToUser;
     DecentralizedStableCoin immutable i_dsc;
 
-    constructor(address[] memory tokenAddress, address[] memory priceFeedsAddress, address dscAddress) {
+    event DepositCollateral(
+        address indexed userAddress,
+        address indexed tokenAddress,
+        uint256 indexed amount
+    );
+
+    constructor(
+        address[] memory tokenAddress,
+        address[] memory priceFeedsAddress,
+        address dscAddress
+    ) {
         if (tokenAddress.length != priceFeedsAddress.length) {
             revert DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
         }
@@ -42,16 +52,34 @@ contract DSCEngine is Validations, ReentrancyGuard {
         i_dsc = DecentralizedStableCoin(dscAddress);
     }
 
+    function _isAllowedToken(address _token) internal view {
+        if (s_priceFeeds[_token] == address(0)) {
+            revert DSCEngine__NotAllowedToken();
+        }
+    }
+
     /* 存入抵押并且铸造DSC */
     function depositCollateralAndMintDsc() external {}
 
     /* 只存入抵押品 不铸造 DSC ，因为铸造会影响 健康值  health factor */
-    function depositCollateral(address tokenCollateralAddress, uint256 tokenAmount)
+    function depositCollateral(
+        address tokenCollateralAddress,
+        uint256 tokenAmount
+    )
         external
         moreThanZero(tokenAmount)
         isAllowedToken(tokenCollateralAddress)
         nonReentrant
-    {}
+    {
+        s_userAddressDeposit[msg.sender][tokenCollateralAddress] += tokenAmount;
+        emit DepositCollateral(msg.sender, tokenCollateralAddress, tokenAmount);
+        bool success = IERC20(tokenCollateralAddress).transferFrom(
+            msg.sender,
+            address(this),
+            tokenAmount
+        );
+        if (!success) revert DSCEngine__TransFerFaile();
+    }
 
     /* 铸造Dsc */
     function mintDes() external {}

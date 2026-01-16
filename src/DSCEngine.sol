@@ -19,7 +19,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
     error DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
     error DSCEngine__NotAllowedToken();
     error DSCEngine__TransFerFaile();
-    
+
     modifier isAllowedToken(address _token) {
         _isAllowedToken(_token);
         _;
@@ -28,6 +28,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
     /* state */
     mapping(address token => address priceFeeds) private s_priceFeeds;
     mapping(address user => mapping(address token => uint256 amount)) s_userAddressDeposit;
+    mapping(address user => uint256 amount) s_DSCMinted;
 
     DecentralizedStableCoin immutable i_dsc;
 
@@ -82,7 +83,11 @@ contract DSCEngine is Validations, ReentrancyGuard {
     }
 
     /* 铸造Dsc */
-    function mintDes() external {}
+    function mintDes(
+        uint256 _amount
+    ) external moreThanZero(_amount) nonReentrant {
+        s_DSCMinted[msg.sender] += _amount;
+    }
 
     /* 赎回抵押品并且销毁DSC */
     function redeemCollateralForDsc() external {}

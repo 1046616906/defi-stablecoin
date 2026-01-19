@@ -7,6 +7,7 @@ import {Validations} from "../utils/Validations.sol";
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /**
  * @title DSCEngine
@@ -28,7 +29,9 @@ contract DSCEngine is Validations, ReentrancyGuard {
     /* state */
     mapping(address token => address priceFeeds) private s_priceFeeds;
     mapping(address user => mapping(address token => uint256 amount)) s_userAddressDeposit;
-    mapping(address user => uint256 amount) s_DSCMinted;
+    mapping(address user => uint256 amountDscMinted) s_DSCMinted;
+    // 抵押物的合约地址
+    address[] private s_collarteralToken;
 
     DecentralizedStableCoin immutable i_dsc;
 
@@ -49,6 +52,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
 
         for (uint256 i = 0; i < tokenAddress.length; i++) {
             s_priceFeeds[tokenAddress[i]] = priceFeedsAddress[i];
+            s_collarteralToken.push(tokenAddress[i]);
         }
         i_dsc = DecentralizedStableCoin(dscAddress);
     }
@@ -82,11 +86,17 @@ contract DSCEngine is Validations, ReentrancyGuard {
         if (!success) revert DSCEngine__TransFerFaile();
     }
 
-    /* 铸造Dsc */
-    function mintDes(
-        uint256 _amount
-    ) external moreThanZero(_amount) nonReentrant {
-        s_DSCMinted[msg.sender] += _amount;
+    /**
+     *
+     * @param amountDscToMint  铸造DSC数量
+     * 1. 将铸造人存入 s_DSCMinted mapping 中
+     * 2. 需要判断铸造人是否可以制造amountDscToMint的DSC，不能 mintAmount > collateral
+     * 3. 需要判断健康值是否达标，不达标都应revert
+     */
+    function mintDsc(
+        uint256 amountDscToMint
+    ) external moreThanZero(amountDscToMint) nonReentrant {
+        s_DSCMinted[msg.sender] += amountDscToMint;
     }
 
     /* 赎回抵押品并且销毁DSC */
@@ -103,4 +113,42 @@ contract DSCEngine is Validations, ReentrancyGuard {
 
     /* 健康因子 */
     function getHealthFactor() external {}
+
+    // private function
+    /**
+     * @param user 将要查询的用户地址
+     * @return totalDscMinted  已经铸造DSC的数量
+     * @return collateralValInUsd  抵押物品的 USDT 值
+     */
+    function _getAccountInformation(
+        address user
+    ) internal returns (uint256 totalDscMinted, uint256 collateralValInUsd) {}
+
+    function _healthFactor(address user) internal returns (uint256) {
+        (
+            uint256 totalDscMinted,
+            uint256 collateralValInUsd
+        ) = _getAccountInformation(user);
+    }
+
+    function _revertIfHealthFactorIsBroken() internal {}
+
+    //  view  pure
+    /* 获取账号下抵押物品的数量 */
+    function getAccountCollateralValue(
+        address user
+    ) public returns (uint256 totalCollateralValueInUsd) {
+        for (uint256 i = 0; i < s_collarteralToken.length; i++) {
+            address token = s_collarteralToken[i];
+            uint256 amount = s_userAddressDeposit[user][token];
+            totalCollateralValueInUsd += getUsdValue(token, amount);
+        }
+    }
+
+    function getUsdValue(
+        address token,
+        uint256 amount
+    ) public returns (uint256) {
+        // ('')
+    }
 }

@@ -20,13 +20,19 @@ contract DSCEngine is Validations, ReentrancyGuard {
     error DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
     error DSCEngine__NotAllowedToken();
     error DSCEngine__TransFerFaile();
-
+    error DSCEngine__BreaksHealthFactor(uint256 userHealthFactor);
+    error DSCEngine__MintFaile();
     modifier isAllowedToken(address _token) {
         _isAllowedToken(_token);
         _;
     }
 
-    /* state */
+    //  state =============================================
+    uint256 private constant PRECISION = 1e18; // 精确度
+    uint256 private constant LIQUIDATION_THRESHOLD = 50; //清算阈值
+    uint256 private constant LIQUIDATION_PRECISION = 100; // 计算精度
+    uint256 private constant MIN_HEALTH_FACTOR = 1e18; // 计算精度
+
     mapping(address token => address priceFeeds) private s_priceFeeds;
     mapping(address user => mapping(address token => uint256 amount)) s_userAddressDeposit;
     mapping(address user => uint256 amountDscMinted) s_DSCMinted;
@@ -35,17 +41,11 @@ contract DSCEngine is Validations, ReentrancyGuard {
 
     DecentralizedStableCoin immutable i_dsc;
 
-    event DepositCollateral(
-        address indexed userAddress,
-        address indexed tokenAddress,
-        uint256 indexed amount
-    );
+    //  function =============================================
 
-    constructor(
-        address[] memory tokenAddress,
-        address[] memory priceFeedsAddress,
-        address dscAddress
-    ) {
+    event DepositCollateral(address indexed userAddress, address indexed tokenAddress, uint256 indexed amount);
+
+    constructor(address[] memory tokenAddress, address[] memory priceFeedsAddress, address dscAddress) {
         if (tokenAddress.length != priceFeedsAddress.length) {
             revert DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
         }
@@ -67,10 +67,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
     function depositCollateralAndMintDsc() external {}
 
     /* 只存入抵押品 不铸造 DSC ，因为铸造会影响 健康值  health factor */
-    function depositCollateral(
-        address tokenCollateralAddress,
-        uint256 tokenAmount
-    )
+    function depositCollateral(address tokenCollateralAddress, uint256 tokenAmount)
         external
         moreThanZero(tokenAmount)
         isAllowedToken(tokenCollateralAddress)
@@ -78,11 +75,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
     {
         s_userAddressDeposit[msg.sender][tokenCollateralAddress] += tokenAmount;
         emit DepositCollateral(msg.sender, tokenCollateralAddress, tokenAmount);
-        bool success = IERC20(tokenCollateralAddress).transferFrom(
-            msg.sender,
-            address(this),
-            tokenAmount
-        );
+        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), tokenAmount);
         if (!success) revert DSCEngine__TransFerFaile();
     }
 
@@ -93,10 +86,11 @@ contract DSCEngine is Validations, ReentrancyGuard {
      * 2. 需要判断铸造人是否可以制造amountDscToMint的DSC，不能 mintAmount > collateral
      * 3. 需要判断健康值是否达标，不达标都应revert
      */
-    function mintDsc(
-        uint256 amountDscToMint
-    ) external moreThanZero(amountDscToMint) nonReentrant {
+    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) nonReentrant {
         s_DSCMinted[msg.sender] += amountDscToMint;
+        _revertIfHealthFactorIsBroken(msg.sender);
+        bool success = i_dsc.mint(msg.sender, amountDscToMint);
+        if (!success) revert DSCEngine__MintFaile();
     }
 
     /* 赎回抵押品并且销毁DSC */
@@ -120,24 +114,37 @@ contract DSCEngine is Validations, ReentrancyGuard {
      * @return totalDscMinted  已经铸造DSC的数量
      * @return collateralValInUsd  抵押物品的 USDT 值
      */
-    function _getAccountInformation(
-        address user
-    ) internal returns (uint256 totalDscMinted, uint256 collateralValInUsd) {}
-
-    function _healthFactor(address user) internal returns (uint256) {
-        (
-            uint256 totalDscMinted,
-            uint256 collateralValInUsd
-        ) = _getAccountInformation(user);
+    function _getAccountInformation(address user)
+        internal
+        view
+        returns (uint256 totalDscMinted, uint256 collateralValInUsd)
+    {
+        totalDscMinted = s_DSCMinted[user];
+        collateralValInUsd = getAccountCollateralValue(user);
     }
 
-    function _revertIfHealthFactorIsBroken() internal {}
+    function _healthFactor(address user) internal view returns (uint256) {
+        (uint256 totalDscMinted, uint256 collateralValInUsd) = _getAccountInformation(user);
+        /**
+         * collateralAdjustedForThreshold 可借出的数量 也可以称之为 打折的价格
+         * 2000 * 50 / 100  ===== 2000 / 2 = 1000
+         * collateralAdjustedForThreshold = 1000   totalDscMinted = 100
+         * 1000 * 1e18 / 100  =  10 * 1e19
+         */
+        uint256 collateralAdjustedForThreshold = (collateralValInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
+        return collateralAdjustedForThreshold * PRECISION / totalDscMinted;
+    }
 
-    //  view  pure
+    function _revertIfHealthFactorIsBroken(address user) internal view {
+        uint256 userHealthFactor = _healthFactor(user);
+        if (userHealthFactor < MIN_HEALTH_FACTOR) {
+            revert DSCEngine__BreaksHealthFactor(userHealthFactor);
+        }
+    }
+
+    //  view  pure =======================================================
     /* 获取账号下抵押物品的数量 */
-    function getAccountCollateralValue(
-        address user
-    ) public returns (uint256 totalCollateralValueInUsd) {
+    function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
         for (uint256 i = 0; i < s_collarteralToken.length; i++) {
             address token = s_collarteralToken[i];
             uint256 amount = s_userAddressDeposit[user][token];
@@ -145,10 +152,8 @@ contract DSCEngine is Validations, ReentrancyGuard {
         }
     }
 
-    function getUsdValue(
-        address token,
-        uint256 amount
-    ) public returns (uint256) {
-        // ('')
+    function getUsdValue(address token, uint256 amount) public view returns (uint256) {
+        (, int256 price,,,) = AggregatorV3Interface(token).latestRoundData();
+        return (uint256(price) * 1e10 * amount) / PRECISION;
     }
 }

@@ -21,7 +21,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
     error DSCEngine__NotAllowedToken();
     error DSCEngine__TransFerFaile();
     error DSCEngine__BreaksHealthFactor(uint256 userHealthFactor);
-    error DSCEngine__MintFaile();
+    error DSCEngine__MintFailed();
     modifier isAllowedToken(address _token) {
         _isAllowedToken(_token);
         _;
@@ -107,7 +107,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
         s_DSCMinted[msg.sender] += amountDscToMint;
         _revertIfHealthFactorIsBroken(msg.sender);
         bool success = i_dsc.mint(msg.sender, amountDscToMint);
-        if (!success) revert DSCEngine__MintFaile();
+        if (!success) revert DSCEngine__MintFailed();
     }
 
     /* 赎回抵押品并且销毁DSC */

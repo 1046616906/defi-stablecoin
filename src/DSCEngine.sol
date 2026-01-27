@@ -48,6 +48,11 @@ contract DSCEngine is Validations, ReentrancyGuard {
         address indexed tokenAddress,
         uint256 indexed amount
     );
+    event CollateralRedeemed(
+        address indexed userAddress,
+        address indexed tokenAddress,
+        uint256 indexed amount
+    );
 
     constructor(
         address[] memory tokenAddress,
@@ -119,7 +124,16 @@ contract DSCEngine is Validations, ReentrancyGuard {
         uint256 tokenAmount
     ) external moreThanZero(tokenAmount) nonReentrant {
         s_userAddressDeposit[msg.sender][tokenCollateralAddress] -= tokenAmount;
-        
+        emit CollateralRedeemed(
+            msg.sender,
+            tokenCollateralAddress,
+            tokenAmount
+        );
+        bool success = IERC20(tokenCollateralAddress).transfer(
+            msg.sender,
+            tokenAmount
+        );
+        if (!success) revert DSCEngine__TransFerFaile();
     }
 
     /* 销毁Dsc */

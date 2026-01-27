@@ -43,22 +43,10 @@ contract DSCEngine is Validations, ReentrancyGuard {
 
     //  function =============================================
 
-    event DepositCollateral(
-        address indexed userAddress,
-        address indexed tokenAddress,
-        uint256 indexed amount
-    );
-    event CollateralRedeemed(
-        address indexed userAddress,
-        address indexed tokenAddress,
-        uint256 indexed amount
-    );
+    event DepositCollateral(address indexed userAddress, address indexed tokenAddress, uint256 indexed amount);
+    event CollateralRedeemed(address indexed userAddress, address indexed tokenAddress, uint256 indexed amount);
 
-    constructor(
-        address[] memory tokenAddress,
-        address[] memory priceFeedsAddress,
-        address dscAddress
-    ) {
+    constructor(address[] memory tokenAddress, address[] memory priceFeedsAddress, address dscAddress) {
         if (tokenAddress.length != priceFeedsAddress.length) {
             revert DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength();
         }
@@ -77,25 +65,23 @@ contract DSCEngine is Validations, ReentrancyGuard {
     }
 
     /* 存入抵押并且铸造DSC */
-    function depositCollateralAndMintDsc() external {}
+    function depositCollateralAndMintDsc(address tokenCollateralAddress, uint256 tokenAmount, uint256 amountDscToMint)
+        external
+    {
+        depositCollateral(tokenCollateralAddress, tokenAmount);
+        mintDsc(amountDscToMint);
+    }
 
     /* 只存入抵押品 不铸造 DSC ，因为铸造会影响 健康值  health factor */
-    function depositCollateral(
-        address tokenCollateralAddress,
-        uint256 tokenAmount
-    )
-        external
+    function depositCollateral(address tokenCollateralAddress, uint256 tokenAmount)
+        public
         moreThanZero(tokenAmount)
         isAllowedToken(tokenCollateralAddress)
         nonReentrant
     {
         s_userAddressDeposit[msg.sender][tokenCollateralAddress] += tokenAmount;
         emit DepositCollateral(msg.sender, tokenCollateralAddress, tokenAmount);
-        bool success = IERC20(tokenCollateralAddress).transferFrom(
-            msg.sender,
-            address(this),
-            tokenAmount
-        );
+        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), tokenAmount);
         if (!success) revert DSCEngine__TransFerFaile();
     }
 
@@ -106,9 +92,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
      * 2. 需要判断铸造人是否可以制造amountDscToMint的DSC，不能 mintAmount > collateral
      * 3. 需要判断健康值是否达标，不达标都应revert
      */
-    function mintDsc(
-        uint256 amountDscToMint
-    ) external moreThanZero(amountDscToMint) nonReentrant {
+    function mintDsc(uint256 amountDscToMint) public moreThanZero(amountDscToMint) nonReentrant {
         s_DSCMinted[msg.sender] += amountDscToMint;
         _revertIfHealthFactorIsBroken(msg.sender);
         bool success = i_dsc.mint(msg.sender, amountDscToMint);
@@ -116,28 +100,32 @@ contract DSCEngine is Validations, ReentrancyGuard {
     }
 
     /* 赎回抵押品并且销毁DSC */
-    function redeemCollateralForDsc() external {}
+    function redeemCollateralForDsc(address tokenCollateralAddress, uint256 tokenAmount, uint256 burnMount) external {
+        burnDsc(burnMount);
+        redeemCollateral(tokenCollateralAddress, tokenAmount);
+    }
 
     /* 赎回抵押品 */
-    function redeemCollateral(
-        address tokenCollateralAddress,
-        uint256 tokenAmount
-    ) external moreThanZero(tokenAmount) nonReentrant {
+    function redeemCollateral(address tokenCollateralAddress, uint256 tokenAmount)
+        public
+        moreThanZero(tokenAmount)
+        nonReentrant
+    {
         s_userAddressDeposit[msg.sender][tokenCollateralAddress] -= tokenAmount;
-        emit CollateralRedeemed(
-            msg.sender,
-            tokenCollateralAddress,
-            tokenAmount
-        );
-        bool success = IERC20(tokenCollateralAddress).transfer(
-            msg.sender,
-            tokenAmount
-        );
+        emit CollateralRedeemed(msg.sender, tokenCollateralAddress, tokenAmount);
+        bool success = IERC20(tokenCollateralAddress).transfer(msg.sender, tokenAmount);
         if (!success) revert DSCEngine__TransFerFaile();
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     /* 销毁Dsc */
-    function burnDsc() external {}
+    function burnDsc(uint256 amountDsc) public moreThanZero(amountDsc) nonReentrant {
+        s_DSCMinted[msg.sender] -= amountDsc;
+        bool success = i_dsc.transferFrom(msg.sender, address(this), amountDsc);
+        if (success) revert DSCEngine__TransFerFaile();
+        i_dsc.burn(amountDsc);
+        _revertIfHealthFactorIsBroken(msg.sender); // 理论上 销毁dsc _revertIfHealthFactorIsBroken永远不会触发
+    }
 
     /* 清算 */
     function liquidate() external {}
@@ -151,9 +139,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
      * @return totalDscMinted  已经铸造DSC的数量
      * @return collateralValInUsd  抵押物品的 USDT 值
      */
-    function _getAccountInformation(
-        address user
-    )
+    function _getAccountInformation(address user)
         internal
         view
         returns (uint256 totalDscMinted, uint256 collateralValInUsd)
@@ -169,18 +155,14 @@ contract DSCEngine is Validations, ReentrancyGuard {
      * 公式  collateralValInUsd * 清算阈值  / totalDscMinted   1000 * 0.5 / 100  = 5； 5>1
      */
     function _healthFactor(address user) internal view returns (uint256) {
-        (
-            uint256 totalDscMinted,
-            uint256 collateralValInUsd
-        ) = _getAccountInformation(user);
+        (uint256 totalDscMinted, uint256 collateralValInUsd) = _getAccountInformation(user);
         /**
          * collateralAdjustedForThreshold 可借出的数量 也可以称之为 打折的价格
          * 2000 * 50 / 100  ===== 2000 / 2 = 1000
          * collateralAdjustedForThreshold = 1000   totalDscMinted = 100
          * 1000 * 1e18 / 100  =  10 * 1e19
          */
-        uint256 collateralAdjustedForThreshold = (collateralValInUsd *
-            LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
+        uint256 collateralAdjustedForThreshold = (collateralValInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
         return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
     }
 
@@ -206,9 +188,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
      * 2. 遍历数组，获取用户存入该token的数量
      * 3. 通过token 和 数量 获取用户的抵押品的总金额
      */
-    function getAccountCollateralValue(
-        address user
-    ) public view returns (uint256 totalCollateralValueInUsd) {
+    function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
         for (uint256 i = 0; i < s_collarteralToken.length; i++) {
             address token = s_collarteralToken[i];
             uint256 amount = s_userAddressDeposit[user][token];
@@ -223,12 +203,8 @@ contract DSCEngine is Validations, ReentrancyGuard {
      * 使用AggregatorV3Interface获取每个货币的价格来计算传入的token总价值
      * @notice  最后因为AggregatorV3Interface返回的 精度是 1e8 因为要同步精度，所有要 * 1e10 ，至于除以 1e18(PRECISION) ，可以当作为了把amount 转换成个数，比如 1个eth = 1e18 ， / 1e18(PRECISION) 为了把amount变为我们认为的个数也就是 “ 1 ”
      */
-    function getUsdValue(
-        address token,
-        uint256 amount
-    ) public view returns (uint256) {
-        (, int256 price, , , ) = AggregatorV3Interface(s_priceFeeds[token])
-            .latestRoundData();
+    function getUsdValue(address token, uint256 amount) public view returns (uint256) {
+        (, int256 price,,,) = AggregatorV3Interface(s_priceFeeds[token]).latestRoundData();
         return (uint256(price) * 1e10 * amount) / PRECISION;
     }
 }

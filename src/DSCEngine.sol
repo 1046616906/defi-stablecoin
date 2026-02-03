@@ -225,7 +225,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
     function _burnDsc(uint256 amountDsc, address debtor, address repayer) private {
         s_DSCMinted[debtor] -= amountDsc;
         bool success = i_dsc.transferFrom(repayer, address(this), amountDsc);
-        if (success) revert DSCEngine__TransFerFaile();
+        if (!success) revert DSCEngine__TransFerFaile();
         i_dsc.burn(amountDsc);
     }
 

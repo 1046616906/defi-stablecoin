@@ -5,3 +5,8 @@ libs = ["lib"]
 remappings = ["@openzeppelin/=lib/openzeppelin-contracts/","@chainlink/=lib/chainlink-brownie-contracts/","forge-std/=lib/forge-std/src/"]
 solc = "0.8.20"
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[invariant]
+runs = 100
+depth = 128
+fail_on_revert = false

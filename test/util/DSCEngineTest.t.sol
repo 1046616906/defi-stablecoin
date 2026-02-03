@@ -28,13 +28,7 @@ contract DSCEngineTest is Test {
     function setUp() public {
         DeployDSC deployDsc = new DeployDSC();
         (dscEngine, dsc, helperConfig) = deployDsc.run();
-        (
-            wethUsdPriceFeed,
-            wbtcUsdPriceFeed,
-            weth,
-            wbtc,
-            deployerKey
-        ) = helperConfig.activeNetworkConfig();
+        (wethUsdPriceFeed, wbtcUsdPriceFeed, weth, wbtc, deployerKey) = helperConfig.activeNetworkConfig();
         ERC20Mock(weth).mint(USER, INIT_AMOUNT);
     }
 
@@ -55,17 +49,11 @@ contract DSCEngineTest is Test {
     }
 
     // constructor test
-    function test_Revert_TokenAddressLengthNotEqualPriceFeedsAddress()
-        external
-    {
+    function test_Revert_TokenAddressLengthNotEqualPriceFeedsAddress() external {
         tokenAddress.push(weth);
         priceFeedsAddress.push(wethUsdPriceFeed);
         priceFeedsAddress.push(wbtcUsdPriceFeed);
-        vm.expectRevert(
-            DSCEngine
-                .DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength
-                .selector
-        );
+        vm.expectRevert(DSCEngine.DSCEngine__TokenAddressesAndpriceFeedAddressesMustBeSameLength.selector);
         new DSCEngine(tokenAddress, priceFeedsAddress, address(dsc));
     }
 
@@ -98,41 +86,27 @@ contract DSCEngineTest is Test {
     }
 
     function test_GetAccountInformation() external collateralDeposited {
-        (uint256 totalDscMinted, uint256 collateralValInUsd) = dscEngine
-            .getAccountInformation(USER);
+        (uint256 totalDscMinted, uint256 collateralValInUsd) = dscEngine.getAccountInformation(USER);
         assertEq(totalDscMinted, 0);
         assertEq(collateralValInUsd, 10000 ether);
     }
 
-    function test_CanDepositCollateralWithoutMinting()
-        external
-        collateralDeposited
-    {
+    function test_CanDepositCollateralWithoutMinting() external collateralDeposited {
         uint256 userBalance = dsc.balanceOf(USER);
         assertEq(userBalance, 0);
     }
 
     // mintDSC test ============================================
     function test_Revert_IfHealthFactorIsBroken() external collateralDeposited {
-        (, int256 price, , , ) = MockV3Aggregator(wethUsdPriceFeed)
-            .latestRoundData();
+        (, int256 price,,,) = MockV3Aggregator(wethUsdPriceFeed).latestRoundData();
         // price = 1000e8
         amountToMint = // 10e18
-            (INIT_AMOUNT *
-                (uint256(price) * dscEngine.getAdditionalFeedPrecision())) /
-            dscEngine.getPrecision();
-        uint256 expectedHealthFactor = dscEngine.calculateHealthFactor(
-            amountToMint,
-            dscEngine.getUsdValue(weth, INIT_AMOUNT)
-        );
+                (INIT_AMOUNT * (uint256(price) * dscEngine.getAdditionalFeedPrecision())) / dscEngine.getPrecision();
+        uint256 expectedHealthFactor =
+            dscEngine.calculateHealthFactor(amountToMint, dscEngine.getUsdValue(weth, INIT_AMOUNT));
 
         vm.prank(USER);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DSCEngine.DSCEngine__BreaksHealthFactor.selector,
-                expectedHealthFactor
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__BreaksHealthFactor.selector, expectedHealthFactor));
         dscEngine.mintDsc(10000 ether);
         // (uint256 totalDscMinted, ) = dscEngine.getAccountInformation(USER);
         // assertEq(totalDscMinted, 20000 ether);
@@ -148,10 +122,7 @@ contract DSCEngineTest is Test {
     function test_CollateralRedeemed() external collateralDeposited {
         vm.prank(USER);
         dscEngine.redeemCollateral(weth, INIT_AMOUNT);
-        uint256 totalCollateralAmount = dscEngine.getUserCollateralAmount(
-            USER,
-            weth
-        );
+        uint256 totalCollateralAmount = dscEngine.getUserCollateralAmount(USER, weth);
         assertEq(totalCollateralAmount, 0);
     }
 
@@ -170,7 +141,7 @@ contract DSCEngineTest is Test {
         dsc.approve(address(dscEngine), burnDscAmount);
         dscEngine.burnDsc(burnDscAmount);
         vm.stopPrank();
-        (uint256 totalDscMinted, ) = dscEngine.getAccountInformation(USER);
+        (uint256 totalDscMinted,) = dscEngine.getAccountInformation(USER);
         assertEq(totalDscMinted, 50 ether);
     }
 }

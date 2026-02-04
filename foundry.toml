@@ -9,4 +9,4 @@ solc = "0.8.20"
 [invariant]
 runs = 100
 depth = 128
-fail_on_revert = false
+fail_on_revert = true

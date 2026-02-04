@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {DeployDSC} from "../../script/DeployDSC.s.sol";
 import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
@@ -15,15 +15,17 @@ contract Invariant is Test {
     HelperConfig config;
     address weth;
     address wbtc;
+    Handler handler;
 
     function setUp() external {
         DeployDSC deployDSC = new DeployDSC();
 
         (dscEngine, dsc, config) = deployDSC.run();
-        (, , weth, wbtc, ) = config.activeNetworkConfig();
+        (,, weth, wbtc,) = config.activeNetworkConfig();
         // targetContract(address(dscEngine));
-        Handler handler = new Handler(dsc, dscEngine);
+        handler = new Handler(dsc, dscEngine);
         targetContract(address(handler));
+        console.log(handler.ghostVariable());
     }
 
     function invariant_protocalMustHaveMoreValueThanTotalSuppy() external view {
@@ -31,11 +33,10 @@ contract Invariant is Test {
         uint256 totalWethDeposited = IERC20(weth).balanceOf(address(dscEngine));
         uint256 totalWbtcDeposited = IERC20(wbtc).balanceOf(address(dscEngine));
 
-        uint256 totalUsdValue = dscEngine.getUsdValue(
-            weth,
-            totalWethDeposited
-        ) + dscEngine.getUsdValue(wbtc, totalWbtcDeposited);
+        uint256 totalUsdValue =
+            dscEngine.getUsdValue(weth, totalWethDeposited) + dscEngine.getUsdValue(wbtc, totalWbtcDeposited);
 
         assert(totalUsdValue >= totalSupply);
+        console.log(handler.ghostVariable());
     }
 }

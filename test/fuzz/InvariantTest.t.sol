@@ -25,7 +25,7 @@ contract Invariant is Test {
         // targetContract(address(dscEngine));
         handler = new Handler(dsc, dscEngine);
         targetContract(address(handler));
-        console.log(handler.ghostVariable());
+        // console.log(handler.ghostVariable());
     }
 
     function invariant_protocalMustHaveMoreValueThanTotalSuppy() external view {

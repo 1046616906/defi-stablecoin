@@ -320,6 +320,7 @@ contract DSCEngine is Validations, ReentrancyGuard {
         return s_userAddressDeposit[user][collateralAddress];
     }
 
+    // 通过 usd 计算出 抵押物的 的数量
     function getTokenAmountFormUsd(
         address collateralAddress,
         uint256 usdAmount
@@ -374,5 +375,11 @@ contract DSCEngine is Validations, ReentrancyGuard {
 
     function getCollarteralToken() public view returns (address[] memory) {
         return s_collarteralToken;
+    }
+
+    function getCollateralPriceFeed(
+        address collateralAddress
+    ) public view returns (address) {
+        return s_priceFeeds[collateralAddress];
     }
 }
